@@ -5,13 +5,19 @@ export const buildingService = {
   // Lấy danh sách building theo criteria
   getBuildings: async (criteria: BuildingSearchCriteria): Promise<BuildingDTO[]> => {
     try {
-      const response = await api.get<BuildingDTO[]>('/api/building', {
-        data: criteria
-      });
+      // Sử dụng POST để search với criteria
+      const response = await api.post<BuildingDTO[]>('/api/building/search', criteria);
       return response.data;
     } catch (error) {
       console.error('Error fetching buildings:', error);
-      throw error;
+      // Fallback to GET all buildings
+      try {
+        const fallbackResponse = await api.get<BuildingDTO[]>('/api/building');
+        return fallbackResponse.data;
+      } catch (fallbackError) {
+        console.error('Fallback also failed:', fallbackError);
+        throw error;
+      }
     }
   },
 

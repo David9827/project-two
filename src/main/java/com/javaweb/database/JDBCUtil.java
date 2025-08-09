@@ -7,7 +7,7 @@ import java.sql.SQLException;
 public class JDBCUtil {
     
     // Flag để bật/tắt database connection
-    private static final boolean DATABASE_ENABLED = false;
+    private static final boolean DATABASE_ENABLED = true;
     
     public static Connection getConnection() throws SQLException {
         if (!DATABASE_ENABLED) {
