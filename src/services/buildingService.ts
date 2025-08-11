@@ -1,52 +1,46 @@
-import { api } from './api';
-import { BuildingDTO, BuildingSearchCriteria, Building } from '../types';
+import api from "./api";
 
-export const buildingService = {
-  // Lấy danh sách building theo criteria
-  getBuildings: async (criteria: BuildingSearchCriteria): Promise<BuildingDTO[]> => {
-    try {
-      // Sử dụng POST để search với criteria
-      const response = await api.post<BuildingDTO[]>('/api/building/search', criteria);
-      return response.data;
-    } catch (error) {
-      console.error('Error fetching buildings:', error);
-      // Fallback to GET all buildings
-      try {
-        const fallbackResponse = await api.get<BuildingDTO[]>('/api/building');
-        return fallbackResponse.data;
-      } catch (fallbackError) {
-        console.error('Fallback also failed:', fallbackError);
-        throw error;
-      }
-    }
-  },
+export type BuildingStatus = "AVAILABLE" | "RENTED" | "MAINTENANCE";
 
-  // Lấy building theo ID
-  getBuildingById: async (id: number): Promise<Building> => {
-    const response = await api.get<Building>(`/api/building/${id}`);
-    return response.data;
-  },
+export interface Building {
+  id?: number | string;
+  name: string;
+  address: string;
+  type?: string;
+  area?: number;
+  price?: number;
+  status: BuildingStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
-  // Tạo building mới
-  createBuilding: async (building: Omit<Building, 'id'>): Promise<Building> => {
-    const response = await api.post<Building>('/api/building', building);
-    return response.data;
-  },
+export interface BuildingQuery {
+  q?: string;
+  status?: BuildingStatus | "";
+  page?: number;
+  size?: number;
+}
 
-  // Cập nhật building
-  updateBuilding: async (id: number, building: Partial<Building>): Promise<Building> => {
-    const response = await api.put<Building>(`/api/building/${id}`, building);
-    return response.data;
-  },
+export async function listBuildings(params: BuildingQuery) {
+  // Gợi ý API: GET /api/building?page=&size=&q=&status=
+  const res = await api.get("/api/building", { params });
+  // Chiều theo nhiều dạng response (Pageable hoặc custom)
+  const items = res.data?.content ?? res.data?.items ?? res.data ?? [];
+  const total =
+      res.data?.totalElements ?? res.data?.total ?? (Array.isArray(items) ? items.length : 0);
+  return { items, total };
+}
 
-  // Xóa building
-  deleteBuilding: async (id: number): Promise<void> => {
-    await api.delete(`/api/building/${id}`);
-  },
+export async function createBuilding(payload: Partial<Building>) {
+  const { data } = await api.post("/api/building", payload);
+  return data;
+}
 
-  // Tìm kiếm building
-  searchBuildings: async (searchTerm: string): Promise<BuildingDTO[]> => {
-    const response = await api.get<BuildingDTO[]>(`/api/building/search?q=${searchTerm}`);
-    return response.data;
-  }
-};
+export async function updateBuilding(id: number | string, payload: Partial<Building>) {
+  const { data } = await api.put(`/api/building/${id}`, payload);
+  return data;
+}
+
+export async function deleteBuilding(id: number | string) {
+  await api.delete(`/api/building/${id}`);
+}
