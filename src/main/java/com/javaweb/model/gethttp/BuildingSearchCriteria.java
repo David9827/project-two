@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 @Setter
 
 public class BuildingSearchCriteria {
+    private Integer id;
     private String name;
     private Double floorArea;
     private String districtName;

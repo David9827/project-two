@@ -4,21 +4,23 @@ export interface Building {
   street: string;
   ward: string;
   districtId: number;
-  structure: string;
+  structure?: string;
   numberFloor: number;
   floorArea: number;
   direction: string;
   level: string;
   rentPrice: number;
-  rentPriceDescription: string;
+  rentPriceDescription?: string;
   managerName: string;
   managerPhoneNumber: string;
 }
 
 export interface BuildingDTO {
+  id?: number; // Added ID field
   name: string;
   floorArea: number;
   districtName: string;
+  districtId?: number; // Added for form handling
   ward: string;
   street: string;
   numberFloor: number;
@@ -29,22 +31,28 @@ export interface BuildingDTO {
   managerName: string;
   managerPhoneNumber: string;
   buildingRentType: string;
+  structure?: string;
+  rentPriceDescription?: string;
 }
 
 export interface BuildingSearchCriteria {
   name?: string;
   floorArea?: number;
   districtId?: number;
+  districtName?: string;
   ward?: string;
   street?: string;
   numberFloor?: number;
   direction?: string;
   level?: string;
-  rentPriceFrom?: number;
-  rentPriceTo?: number;
+  rentPriceMin?: number;
+  rentPriceMax?: number;
+  rentAriaMin?: number;
+  rentAriaMax?: number;
   managerName?: string;
   managerPhoneNumber?: string;
   buildingType?: string[];
+  buildingRentType?: string;
 }
 
 export interface User {

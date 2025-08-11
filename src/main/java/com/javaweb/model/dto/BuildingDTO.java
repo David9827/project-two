@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 @Getter
 @Setter
 public class BuildingDTO {
+    private Integer id;
     private String name;
     private Double floorArea;
     private String districtName;
@@ -20,6 +21,10 @@ public class BuildingDTO {
     private String managerName;
     private String managerPhoneNumber;
     private String buildingRentType;
+
+    private Integer districtId; // For easier form handling
+    private String structure;   // If needed
+    private String rentPriceDescription;
 
 
 }
