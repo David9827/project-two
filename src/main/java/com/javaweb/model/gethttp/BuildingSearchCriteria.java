@@ -8,12 +8,20 @@ import java.math.BigDecimal;
 @Setter
 
 public class BuildingSearchCriteria {
-    private String q;                 // tìm theo buildingname/ward/street
-    private Integer districtid;
-    private BigDecimal minRentprice;
-    private BigDecimal maxRentprice;
-    private Double minFloorarea;
-    private Double maxFloorarea;
-    private String level;
+    private Integer id;
+    private String name;
+    private Double floorArea;
+    private String districtName;
+    private String ward;
+    private String street;
+    private Integer numberFloor;
     private String direction;
+    private String level;
+    private BigDecimal rentAriaMin;
+    private BigDecimal rentAriaMax;
+    private BigDecimal rentPriceMin;
+    private BigDecimal rentPriceMax;
+    private String managerName;
+    private String managerPhoneNumber;
+    private String buildingRentType;
 }

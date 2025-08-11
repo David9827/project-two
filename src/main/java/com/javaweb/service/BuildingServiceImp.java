@@ -3,284 +3,370 @@ package com.javaweb.service;
 import com.javaweb.database.JDBCUtil;
 import com.javaweb.model.dto.BuildingDTO;
 import com.javaweb.model.gethttp.BuildingSearchCriteria;
+import com.mysql.cj.jdbc.ConnectionImpl;
 
-import java.math.BigDecimal;
-import java.sql.*;
-import java.time.Instant;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.sql.*;
+import com.javaweb.beans.Building;
 
-public class BuildingServiceImp {
-
-    // ======= SEARCH + PAGINATION =======
-    public List<BuildingDTO> search(BuildingSearchCriteria c, int page, int size) {
-        List<BuildingDTO> out = new ArrayList<>();
-        StringBuilder sql = new StringBuilder(
-                "SELECT b.id, b.buildingname, b.floorarea, b.ward, b.street, b.districtid, " +
-                        "       b.numberfloor, b.direction, b.`level`, b.rentaria, b.rentprice, " +
-                        "       b.managername, b.managerphonenumber, b.created_at, b.updated_at " +
-                        "FROM building b WHERE 1=1"
-        );
+public class BuildingServiceImp implements BuildingService {
+    @Override
+    public List<BuildingDTO> getListBuilding(BuildingSearchCriteria bdcri) {
+        List<BuildingDTO> listDto = new ArrayList<>();
         List<Object> params = new ArrayList<>();
 
-        if (c != null) {
-            if (c.getQ() != null && !c.getQ().isBlank()) {
-                sql.append(" AND (LOWER(b.buildingname) LIKE ? OR LOWER(b.ward) LIKE ? OR LOWER(b.street) LIKE ?)");
-                String like = "%" + c.getQ().toLowerCase() + "%";
-                params.add(like); params.add(like); params.add(like);
-            }
-            if (c.getDistrictid() != null) {
-                sql.append(" AND b.districtid = ?");
-                params.add(c.getDistrictid());
-            }
-            if (c.getMinRentprice() != null) {
-                sql.append(" AND b.rentprice >= ?");
-                params.add(c.getMinRentprice());
-            }
-            if (c.getMaxRentprice() != null) {
-                sql.append(" AND b.rentprice <= ?");
-                params.add(c.getMaxRentprice());
-            }
-            if (c.getMinFloorarea() != null) {
-                sql.append(" AND b.floorarea >= ?");
-                params.add(c.getMinFloorarea());
-            }
-            if (c.getMaxFloorarea() != null) {
-                sql.append(" AND b.floorarea <= ?");
-                params.add(c.getMaxFloorarea());
-            }
-            if (c.getLevel() != null && !c.getLevel().isBlank()) {
-                sql.append(" AND b.`level` = ?");
-                params.add(c.getLevel());
-            }
-            if (c.getDirection() != null && !c.getDirection().isBlank()) {
-                sql.append(" AND b.direction = ?");
-                params.add(c.getDirection());
-            }
+        StringBuilder sql = new StringBuilder("SELECT * FROM building b WHERE 1=1 ");
+        if (bdcri.getName() != null && !bdcri.getName().isEmpty()) {
+            sql.append("AND b.buildingname LIKE ? ");
+            params.add("%" + bdcri.getName() + "%");
+        }
+        if (bdcri.getFloorArea() != null) {
+            sql.append("AND b.floorarea LIKE ? ");
+            params.add(bdcri.getFloorArea());
+        }
+        if (bdcri.getDistrictName() != null && !bdcri.getDistrictName().isEmpty()) {
+            sql.append(";");
+            sql.append(" SELECT * FROM district d JOIN building b ON d.id = b.districtid WHERE districtname LIKE ?");
+            params.add("%" + bdcri.getDistrictName() + "%");
+        }
+        if (bdcri.getWard() != null && !bdcri.getWard().isEmpty()) {
+            sql.append("AND b.ward LIKE ? ");
+            params.add("%" + bdcri.getWard() + "%");
+        }
+        if (bdcri.getStreet() != null && !bdcri.getStreet().isEmpty()) {
+            sql.append("AND b.street LIKE ? ");
+            params.add("%" + bdcri.getStreet() + "%");
+        }
+        if (bdcri.getNumberFloor() != null) {
+            sql.append("AND b.numberfloor LIKE ? ");
+            params.add(bdcri.getNumberFloor());
+        }
+        if (bdcri.getDirection() != null && !bdcri.getDirection().isEmpty()) {
+            sql.append("AND b.direction LIKE ? ");
+            params.add("%" + bdcri.getDirection() + "%");
+        }
+        if (bdcri.getLevel() != null && !bdcri.getLevel().isEmpty()) {
+            sql.append("AND b.level LIKE ? ");
+            params.add("%" + bdcri.getLevel() + "%");
+        }
+        if (bdcri.getRentAriaMin() != null && bdcri.getRentAriaMax() != null) {
+            sql.append("AND rentaria BETWEEN ? AND ? ");
+            params.add(bdcri.getRentAriaMin());
+            params.add(bdcri.getRentAriaMax());
+        }
+        if (bdcri.getRentPriceMin() != null && bdcri.getRentPriceMax() != null) {
+            sql.append("AND rentprice BETWEEN ? AND ? ");
+            params.add(bdcri.getRentPriceMin());
+            params.add(bdcri.getRentPriceMax());
+        }
+        if (bdcri.getManagerName() != null && !bdcri.getManagerName().isEmpty()) {
+            sql.append("AND b.managername LIKE ? ");
+            params.add("%" + bdcri.getManagerName() + "%");
+        }
+        if (bdcri.getManagerPhoneNumber() != null && !bdcri.getManagerPhoneNumber().isEmpty()) {
+            sql.append("AND b.managerphonenumber LIKE ? ");
+            params.add("%" + bdcri.getManagerPhoneNumber() + "%");
         }
 
-        sql.append(" ORDER BY b.id DESC LIMIT ? OFFSET ?");
-        params.add(size);
-        params.add(page * size);
+        try (Connection c = JDBCUtil.getConnection();
+             PreparedStatement pstmt = c.prepareStatement(sql.toString())) {
 
-        try (Connection con = JDBCUtil.getConnection();
-             PreparedStatement ps = con.prepareStatement(sql.toString())) {
-
+            // Thiết lập các tham số vào PreparedStatement
             for (int i = 0; i < params.size(); i++) {
-                ps.setObject(i + 1, params.get(i));
+                pstmt.setObject(i + 1, params.get(i)); // Cài đặt các tham số vào PreparedStatement
+            }
+            // Thực thi truy vấn
+            ResultSet rs = pstmt.executeQuery();
+
+            // Xử lý kết quả trả về
+            while (rs.next()) {
+                BuildingDTO buildingDTO = new BuildingDTO();
+                buildingDTO.setId(rs.getInt("id"));
+                buildingDTO.setName(rs.getString("buildingname"));
+                buildingDTO.setFloorArea(rs.getDouble("floorarea"));
+                //buildingDTO.setDistrictName(rs.getString("districtname"));
+                buildingDTO.setWard(rs.getString("ward"));
+                buildingDTO.setStreet(rs.getString("street"));
+                buildingDTO.setNumberFloor(rs.getInt("numberfloor"));
+                buildingDTO.setDirection(rs.getString("direction"));
+                buildingDTO.setLevel(rs.getString("level"));
+                buildingDTO.setRentPrice(rs.getBigDecimal("rentprice"));
+                buildingDTO.setManagerName(rs.getString("managername"));
+                buildingDTO.setManagerPhoneNumber(rs.getString("managerphonenumber"));
+                //buildingDTO.setBuildingRentType(rs.getString("buildingrenttype"));
+
+                listDto.add(buildingDTO);
             }
 
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) out.add(mapRow(rs));
-            }
         } catch (SQLException e) {
-            throw new RuntimeException("Search building failed", e);
+            e.printStackTrace();
+            // Xử lý lỗi (log hoặc ném exception tùy theo yêu cầu)
         }
-        return out;
+
+        return listDto;
+
     }
+    // Thêm các method này vào class BuildingServiceImp
 
-    public int count(BuildingSearchCriteria c) {
-        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM building b WHERE 1=1");
-        List<Object> params = new ArrayList<>();
-
-        if (c != null) {
-            if (c.getQ() != null && !c.getQ().isBlank()) {
-                sql.append(" AND (LOWER(b.buildingname) LIKE ? OR LOWER(b.ward) LIKE ? OR LOWER(b.street) LIKE ?)");
-                String like = "%" + c.getQ().toLowerCase() + "%";
-                params.add(like); params.add(like); params.add(like);
-            }
-            if (c.getDistrictid() != null) {
-                sql.append(" AND b.districtid = ?");
-                params.add(c.getDistrictid());
-            }
-            if (c.getMinRentprice() != null) {
-                sql.append(" AND b.rentprice >= ?");
-                params.add(c.getMinRentprice());
-            }
-            if (c.getMaxRentprice() != null) {
-                sql.append(" AND b.rentprice <= ?");
-                params.add(c.getMaxRentprice());
-            }
-            if (c.getMinFloorarea() != null) {
-                sql.append(" AND b.floorarea >= ?");
-                params.add(c.getMinFloorarea());
-            }
-            if (c.getMaxFloorarea() != null) {
-                sql.append(" AND b.floorarea <= ?");
-                params.add(c.getMaxFloorarea());
-            }
-            if (c.getLevel() != null && !c.getLevel().isBlank()) {
-                sql.append(" AND b.`level` = ?");
-                params.add(c.getLevel());
-            }
-            if (c.getDirection() != null && !c.getDirection().isBlank()) {
-                sql.append(" AND b.direction = ?");
-                params.add(c.getDirection());
-            }
+    /**
+     * Lấy building theo ID
+     */
+    public BuildingDTO getBuildingById(Integer id) {
+        if (id == null) {
+            throw new IllegalArgumentException("Building ID cannot be null");
         }
 
-        try (Connection con = JDBCUtil.getConnection();
-             PreparedStatement ps = con.prepareStatement(sql.toString())) {
-            for (int i = 0; i < params.size(); i++) {
-                ps.setObject(i + 1, params.get(i));
-            }
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() ? rs.getInt(1) : 0;
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("Count building failed", e);
-        }
-    }
+        Connection connection = null;
+        PreparedStatement statement = null;
+        ResultSet resultSet = null;
 
-    // ======= CRUD =======
+        try {
+            connection = JDBCUtil.getConnection();
+            String sql = """
+            
+                    SELECT b.id, b.name, b.street, b.ward, b.district, b.structure, 
+                   b.numberofbasement, b.floorarea, b.direction, b.level, 
+                   b.rentprice, b.rentpricedescription, b.servicefee, 
+                   b.carfee, b.motofee, b.overtimefee, b.waterfee, 
+                   b.electricityfee, b.deposit, b.payment, b.renttime, 
+                   b.decorationtime, b.brokeragefee, b.note, b.linkofbuilding, 
+                   b.map, b.avatar, b.createddate, b.modifieddate, 
+                   b.createdby, b.modifiedby, b.managername, b.managerphone,
+                   d.name as district_name
+            FROM building b
+            LEFT JOIN district d ON b.district = d.code
+            WHERE b.id = ?
+            """;
 
-    public BuildingDTO findById(int id) {
-        String sql = "SELECT b.id, b.buildingname, b.floorarea, b.ward, b.street, b.districtid, " +
-                "       b.numberfloor, b.direction, b.`level`, b.rentaria, b.rentprice, " +
-                "       b.managername, b.managerphonenumber, b.created_at, b.updated_at " +
-                "FROM building b WHERE b.id = ?";
-        try (Connection con = JDBCUtil.getConnection();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-            ps.setInt(1, id);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return mapRow(rs);
-                return null;
+            statement = connection.prepareStatement(sql);
+            statement.setInt(1, id);
+            resultSet = statement.executeQuery();
+
+            if (resultSet.next()) {
+                BuildingDTO building = new BuildingDTO();
+                building.setId(resultSet.getInt("id"));
+                building.setName(resultSet.getString("name"));
+                building.setStreet(resultSet.getString("street"));
+                building.setWard(resultSet.getString("ward"));
+                building.setDistrictName(resultSet.getString("district_name"));
+                building.setStructure(resultSet.getString("structure"));
+
+                building.setDirection(resultSet.getString("direction"));
+                building.setLevel(resultSet.getString("level"));
+                building.setRentPriceDescription(resultSet.getString("rentpricedescription"));
+
+
+                return building;
             }
-        } catch (SQLException e) {
-            throw new RuntimeException("Find building failed", e);
+
+            return null; // Không tìm thấy building
+
+        } catch (Exception e) {
+            throw new RuntimeException("Error getting building by ID: " + e.getMessage(), e);
+        } finally {
+            try {
+                if (resultSet != null) resultSet.close();
+                if (statement != null) statement.close();
+                if (connection != null) connection.close();
+            } catch (Exception e) {
+                System.err.println("Error closing database resources: " + e.getMessage());
+            }
         }
     }
 
-    public BuildingDTO create(BuildingDTO dto) {
-        String sql = "INSERT INTO building (" +
-                "buildingname, floorarea, ward, street, districtid, numberfloor, direction, `level`, " +
-                "rentaria, rentprice, managername, managerphonenumber, created_at, updated_at" +
-                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)";
-        try (Connection con = JDBCUtil.getConnection();
-             PreparedStatement ps = con.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+    /**
+     * Tạo building mới
+     */
+    public Building createBuilding(Building building) {
+        if (building == null) {
+            throw new IllegalArgumentException("Building cannot be null");
+        }
 
-            bindUpsertParams(ps, dto);
+        // Validate required fields
+        if (building.getName() == null || building.getName().trim().isEmpty()) {
+            throw new IllegalArgumentException("Building name is required");
+        }
 
-            ps.executeUpdate();
-            try (ResultSet keys = ps.getGeneratedKeys()) {
-                if (keys.next()) dto.setId(keys.getInt(1));
+        Connection connection = null;
+        PreparedStatement statement = null;
+        ResultSet generatedKeys = null;
+
+        try {
+            connection = JDBCUtil.getConnection();
+            String sql =
+                    """
+            INSERT INTO building (name, street, ward, district, structure, 
+                                numberofbasement, floorarea,
+                    direction, level, 
+                                rentprice,
+                    rentpricedescription, servicefee,
+                                carfee, motofee, overtimefee, waterfee, 
+                                electricityfee,
+                    deposit, payment, renttime,
+                                decorationtime, brokeragefee, note, linkofbuilding, 
+                                map, avatar, createddate,
+                    createdby, managername, managerphone)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?)
+            """;
+
+            statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS);
+
+            statement.setString(1, building.getName());
+            statement.setString(2, building.getStreet());
+            statement.setString(3, building.getWard());
+            statement.setString(5, building.getStructure());
+            statement.setObject(7, building.getFloorArea());
+            statement.setString(8, building.getDirection());
+            statement.setString(9, building.getLevel());
+            statement.setObject(10, building.getRentPrice());
+
+            statement.setString(27, "system"); // createdby
+            statement.setString(28, building.getManagerName());
+
+
+            int affectedRows = statement.executeUpdate();
+
+            if (affectedRows == 0) {
+                throw new RuntimeException("Creating building failed, no rows affected.");
             }
-            dto.setCreatedAt(Instant.now());
-            dto.setUpdatedAt(dto.getCreatedAt());
-            return dto;
-        } catch (SQLException e) {
-            throw new RuntimeException("Create building failed", e);
+
+            generatedKeys = statement.getGeneratedKeys();
+            if (generatedKeys.next()) {
+                building.setId(generatedKeys.getInt(1));
+            } else {
+                throw new RuntimeException("Creating building failed, no ID obtained.");
+            }
+
+            return building;
+
+        } catch (Exception e) {
+            throw new RuntimeException("Error creating building: " + e.getMessage(), e);
+        } finally {
+            try {
+                if (generatedKeys != null) generatedKeys.close();
+                if (statement != null) statement.close();
+                if (connection != null) connection.close();
+            } catch (Exception e) {
+                System.err.println("Error closing database resources: " + e.getMessage());
+            }
         }
     }
 
-    public BuildingDTO update(int id, BuildingDTO dto) {
-        String sql = "UPDATE building SET " +
-                "buildingname=?, floorarea=?, ward=?, street=?, districtid=?, numberfloor=?, " +
-                "direction=?, `level`=?, rentaria=?, rentprice=?, managername=?, managerphonenumber=?, " +
-                "updated_at=CURRENT_TIMESTAMP WHERE id=?";
-        try (Connection con = JDBCUtil.getConnection();
-             PreparedStatement ps = con.prepareStatement(sql)) {
+    /**
+     * Cập nhật building
+     */
+    public Building updateBuilding(Building building) {
+        if (building == null || building.getId() == null) {
+            throw new IllegalArgumentException("Building and Building ID cannot be null");
+        }
 
-            bindUpsertParams(ps, dto);
-            ps.setInt(13, id); // tham số cuối cho WHERE id=?
+        // Validate required fields
+        if (building.getName() == null || building.getName().trim().isEmpty()) {
+            throw new IllegalArgumentException("Building name is required");
+        }
 
-            int n = ps.executeUpdate();
-            if (n == 0) throw new RuntimeException("Building not found id=" + id);
-            dto.setId(id);
-            dto.setUpdatedAt(Instant.now());
-            return dto;
-        } catch (SQLException e) {
-            throw new RuntimeException("Update building failed", e);
+        Connection connection = null;
+        PreparedStatement statement = null;
+
+        try {
+            connection =
+                    JDBCUtil.
+                    getConnection();
+            String sql = """
+            UPDATE building SET 
+                name = ?, street = ?, ward = ?, district = ?, structure = ?, 
+                numberofbasement = ?, floorarea = ?, direction = ?, level
+                    = ?, 
+                rentprice = ?, rentpricedescription = ?
+                    , servicefee = ?, 
+                carfee = ?, motofee = ?,
+                    overtimefee = ?, waterfee = ?, 
+                electricityfee = ?, deposit = ?, payment = ?, renttime = ?, 
+                decorationtime = ?,
+                    brokeragefee = ?, note = ?, linkofbuilding = ?
+                   
+                           map = ?, avatar = ?, modifieddate = NOW(), modifiedby = ?, 
+                managername = ?, managerphone = ?
+            WHERE id = ?
+            """;
+
+            statement = connection.prepareStatement(sql);
+
+            statement.setString(1, building.getName());
+            statement.setString(2, building.getStreet());
+            statement.setString(3, building.getWard());
+            statement.setString(5, building.getStructure());
+            statement.setObject(7, building.getFloorArea());
+            statement.setString(8, building.getDirection());
+            statement.setString(9, building.getLevel());
+            statement.setObject(10, building.getRentPrice());
+
+            statement.setString(27, "system"); // modifiedby
+            statement.setString(28, building.getManagerName());
+            statement.setInt(30, building.getId());
+
+            int affectedRows = statement.executeUpdate();
+
+            if (affectedRows == 0) {
+                throw new IllegalArgumentException("Building not found with ID: " + building.getId());
+            }
+
+            return building;
+
+        } catch (Exception e) {
+            throw new RuntimeException("Error updating building: " + e.getMessage(), e);
+        } finally {
+            try {
+                if (statement != null) statement.close();
+                if (connection != null) connection.close();
+            } catch (Exception e) {
+                System.err.println("Error closing database resources: " + e.getMessage());
+            }
         }
     }
 
-    public void delete(int id) {
-        String sql = "DELETE FROM building WHERE id = ?";
-        try (Connection con = JDBCUtil.getConnection();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-            ps.setInt(1, id);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("Delete building failed", e);
+    /**
+     * Xóa building
+     */
+    public boolean deleteBuilding(Integer id) {
+        if (id == null) {
+            throw new IllegalArgumentException("Building ID cannot be null");
         }
-    }
 
-    // ======= Helpers =======
+        Connection connection = null;
+        PreparedStatement statement = null;
 
-    private void bindUpsertParams(PreparedStatement ps, BuildingDTO dto) throws SQLException {
-        // 1 buildingname
-        ps.setString(1, dto.getBuildingname());
+        try {
+            connection = JDBCUtil.getConnection();
+            String sql = "DELETE FROM building WHERE id = ?";
 
-        // 2 floorarea (DOUBLE) - cho phép null
-        if (dto.getFloorarea() == null) ps.setNull(2, Types.DOUBLE);
-        else ps.setDouble(2, dto.getFloorarea());
+            statement = connection.prepareStatement(sql);
+            statement.setInt(1, id);
 
-        // 3 ward
-        ps.setString(3, dto.getWard());
+            int affectedRows = statement.executeUpdate();
 
-        // 4 street
-        ps.setString(4, dto.getStreet());
+            if (affectedRows == 0) {
+                throw new IllegalArgumentException("Building not found with ID: " + id);
+            }
 
-        // 5 districtid (INT) - cho phép null
-        if (dto.getDistrictid() == null) ps.setNull(5, Types.INTEGER);
-        else ps.setInt(5, dto.getDistrictid());
+            return true;
 
-        // 6 numberfloor (INT) - cho phép null
-        if (dto.getNumberfloor() == null) ps.setNull(6, Types.INTEGER);
-        else ps.setInt(6, dto.getNumberfloor());
-
-        // 7 direction
-        ps.setString(7, dto.getDirection());
-
-        // 8 level (từ khóa nhạy cảm -> đã backtick trong SQL)
-        ps.setString(8, dto.getLevel());
-
-        // 9 rentaria (DECIMAL)
-        if (dto.getRentaria() == null) ps.setNull(9, Types.DECIMAL);
-        else ps.setBigDecimal(9, dto.getRentaria());
-
-        // 10 rentprice (DECIMAL)
-        if (dto.getRentprice() == null) ps.setNull(10, Types.DECIMAL);
-        else ps.setBigDecimal(10, dto.getRentprice());
-
-        // 11 managername
-        ps.setString(11, dto.getManagername());
-
-        // 12 managerphonenumber
-        ps.setString(12, dto.getManagerphonenumber());
-    }
-
-    private BuildingDTO mapRow(ResultSet rs) throws SQLException {
-        BuildingDTO b = new BuildingDTO();
-        b.setId(rs.getInt("id"));
-
-        b.setBuildingname(rs.getString("buildingname"));
-
-        double fa = rs.getDouble("floorarea");
-        b.setFloorarea(rs.wasNull() ? null : fa);
-
-        b.setWard(rs.getString("ward"));
-        b.setStreet(rs.getString("street"));
-
-        int did = rs.getInt("districtid");
-        b.setDistrictid(rs.wasNull() ? null : did);
-
-        int nf = rs.getInt("numberfloor");
-        b.setNumberfloor(rs.wasNull() ? null : nf);
-
-        b.setDirection(rs.getString("direction"));
-        b.setLevel(rs.getString("level"));
-
-        b.setRentaria(rs.getBigDecimal("rentaria"));
-        b.setRentprice(rs.getBigDecimal("rentprice"));
-
-        b.setManagername(rs.getString("managername"));
-        b.setManagerphonenumber(rs.getString("managerphonenumber"));
-
-        Timestamp cAt = rs.getTimestamp("created_at");
-        Timestamp uAt = rs.getTimestamp("updated_at");
-        b.setCreatedAt(cAt != null ? cAt.toInstant() : null);
-        b.setUpdatedAt(uAt != null ? uAt.toInstant() : null);
-        return b;
+        } catch (Exception e) {
+            throw new RuntimeException("Error deleting building: " + e.getMessage(), e);
+        } finally {
+            try {
+                if (statement != null) statement.close();
+                if (connection != null) connection.close();
+            } catch (Exception e) {
+                System.err.println("Error closing database resources: " + e.getMessage());
+            }
+        }
     }
 }
